@@ -1,7 +1,0 @@
-[build]
-  base = "blood-donation-frontend"
-  publish = "dist"
-  command = "npm run build"
-
-[build.environment]
-  NODE_VERSION = "23.11.0"
