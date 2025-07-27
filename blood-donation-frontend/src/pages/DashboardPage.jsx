@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
-import { Typography, Box, Grid, Paper, CircularProgress, Alert, Tabs, Tab, Button, TextField, InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider, Fade, useTheme, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+import { Typography, Box, Grid, Paper, CircularProgress, Alert, Tabs, Tab, Button, TextField, InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider, Fade, useTheme, MenuItem, Select, FormControl, InputLabel, Chip } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
-import { Edit, Delete, Event as EventIcon, Bloodtype as BloodtypeIcon, EmojiEvents as EmojiEventsIcon, Search as SearchIcon, Download as DownloadIcon, Upload as UploadIcon } from '@mui/icons-material';
+import { Edit, Delete, Event as EventIcon, Bloodtype as BloodtypeIcon, EmojiEvents as EmojiEventsIcon, Search as SearchIcon, Download as DownloadIcon, Upload as UploadIcon, Psychology as AIIcon } from '@mui/icons-material';
 import useFetch from '../hooks/useFetch';
 import useApi from '../hooks/useApi';
 import useSnackbar from '../hooks/useSnackbar';
@@ -13,10 +13,14 @@ import { createRequest } from '../features/request';
 import { submitFeedback, fetchFeedback } from '../features/feedback';
 import { fetchAuditLogs } from '../features/analytics';
 import { fetchDonationsThisYear, fetchAllAppointments, fetchAllPayments } from '../features/analytics';
+import { analyzeFeedbackSentiment } from '../features/ai';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import EditIcon from '@mui/icons-material/Edit';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import HealthScreeningBot from '../components/HealthScreeningBot';
+import SmartMatching from '../components/SmartMatching';
+
 
 
 function AdminAnalytics({ stats, loading, error }) {
@@ -389,10 +393,9 @@ function RequestsTable({ onDonationFulfilled, refresh, setRefresh }) {
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
-  const [fulfillDialogOpen, setFulfillDialogOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState(null);
   const [donors, setDonors] = useState([]);
-  const [selectedDonor, setSelectedDonor] = useState('');
+  const [smartMatchingOpen, setSmartMatchingOpen] = useState(false);
+  const [currentRequest, setCurrentRequest] = useState(null);
 
   useEffect(() => {
     fetchRequests();
@@ -414,12 +417,6 @@ function RequestsTable({ onDonationFulfilled, refresh, setRefresh }) {
   };
 
   const handleStatusChange = async (id, status) => {
-    if (status === 'fulfilled') {
-      setSelectedRequest(id);
-      setFulfillDialogOpen(true);
-      setSelectedDonor('');
-      return;
-    }
     setActionLoading(true);
     setActionError('');
     try {
@@ -432,15 +429,23 @@ function RequestsTable({ onDonationFulfilled, refresh, setRefresh }) {
     }
   };
 
-  const handleFulfillSubmit = async () => {
-    if (!selectedDonor) return;
+  const handleSmartMatching = (request) => {
+    setCurrentRequest(request);
+    setSmartMatchingOpen(true);
+  };
+
+  const handleSelectDonor = async (donor) => {
+    if (!currentRequest) return;
+    
     setActionLoading(true);
     setActionError('');
     try {
-      await api.put(`/requests/${selectedRequest}`, { status: 'fulfilled', fulfilledBy: selectedDonor });
-      setFulfillDialogOpen(false);
-      setSelectedRequest(null);
-      setSelectedDonor('');
+      await api.put(`/requests/${currentRequest._id}`, { 
+        status: 'fulfilled', 
+        fulfilledBy: donor._id 
+      });
+      setSmartMatchingOpen(false);
+      setCurrentRequest(null);
       fetchRequests();
       if (onDonationFulfilled) onDonationFulfilled();
       setRefresh(r => r + 1); // trigger donor table refresh
@@ -450,6 +455,8 @@ function RequestsTable({ onDonationFulfilled, refresh, setRefresh }) {
       setActionLoading(false);
     }
   };
+
+
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this request?')) return;
@@ -470,24 +477,50 @@ function RequestsTable({ onDonationFulfilled, refresh, setRefresh }) {
     { field: 'requesterName', headerName: 'Name', width: 150 },
     { field: 'requesterEmail', headerName: 'Email', width: 180 },
     { field: 'bloodGroupNeeded', headerName: 'Blood Group', width: 120 },
-    { field: 'quantity', headerName: 'Quantity', width: 100, type: 'number' },
+    { 
+      field: 'quantity', 
+      headerName: 'Quantity', 
+      width: 100, 
+      type: 'number',
+      align: 'center',
+      headerAlign: 'center'
+    },
     { field: 'status', headerName: 'Status', width: 120 },
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 220,
+      width: 300,
       renderCell: (params) => (
-        <>
-          <Button size="small" color="success" onClick={() => handleStatusChange(params.row._id, 'fulfilled')} disabled={actionLoading || params.row.status === 'fulfilled'}>
-            Fulfill
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button 
+            size="small" 
+            color="primary" 
+            onClick={() => handleSmartMatching(params.row)} 
+            disabled={actionLoading || params.row.status === 'fulfilled'}
+            startIcon={<AIIcon />}
+            sx={{ minWidth: 'auto', px: 1 }}
+          >
+            AI Match
           </Button>
-          <Button size="small" color="warning" onClick={() => handleStatusChange(params.row._id, 'cancelled')} disabled={actionLoading || params.row.status === 'cancelled'}>
+          <Button 
+            size="small" 
+            color="warning" 
+            onClick={() => handleStatusChange(params.row._id, 'cancelled')} 
+            disabled={actionLoading || params.row.status === 'cancelled'}
+            sx={{ minWidth: 'auto', px: 1 }}
+          >
             Cancel
           </Button>
-          <Button size="small" color="error" onClick={() => handleDelete(params.row._id)} disabled={actionLoading}>
+          <Button 
+            size="small" 
+            color="error" 
+            onClick={() => handleDelete(params.row._id)} 
+            disabled={actionLoading}
+            sx={{ minWidth: 'auto', px: 1 }}
+          >
             Delete
           </Button>
-        </>
+        </Box>
       )
     }
   ];
@@ -505,36 +538,16 @@ function RequestsTable({ onDonationFulfilled, refresh, setRefresh }) {
         rowsPerPageOptions={[7, 15, 30]}
         disableRowSelectionOnClick
       />
-      <Dialog open={fulfillDialogOpen} onClose={() => setFulfillDialogOpen(false)}>
-        <DialogTitle>Fulfill Request</DialogTitle>
-        <DialogContent>
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel id="select-donor-label">Select Donor</InputLabel>
-            <Select
-              labelId="select-donor-label"
-              value={selectedDonor}
-              label="Select Donor"
-              onChange={e => setSelectedDonor(e.target.value)}
-            >
-              {donors
-                .filter(donor =>
-                  selectedRequest && donor.bloodGroup === requests.find(r => r._id === selectedRequest)?.bloodGroupNeeded
-                )
-                .map(donor => (
-                  <MenuItem key={donor._id} value={donor._id}>
-                    {donor.name} ({donor.bloodGroup})
-                  </MenuItem>
-                ))}
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setFulfillDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleFulfillSubmit} variant="contained" color="primary" disabled={!selectedDonor || actionLoading}>
-            {actionLoading ? <CircularProgress size={20} /> : 'Fulfill'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+
+
+      {/* AI Smart Matching Dialog */}
+      <SmartMatching
+        open={smartMatchingOpen}
+        onClose={() => setSmartMatchingOpen(false)}
+        request={currentRequest}
+        donors={donors}
+        onSelectDonor={handleSelectDonor}
+      />
     </Box>
   );
 }
@@ -672,6 +685,8 @@ function AppointmentForm({ onAppointmentCreated }) {
   const enqueueSnackbar = useSnackbar();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [healthScreeningOpen, setHealthScreeningOpen] = useState(false);
+  const { user } = useAuth();
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -699,9 +714,31 @@ function AppointmentForm({ onAppointmentCreated }) {
     }
   };
 
+  const handleHealthScreening = () => {
+    setHealthScreeningOpen(true);
+  };
+
+  const handleScreeningComplete = (assessment) => {
+    if (assessment.eligible) {
+      enqueueSnackbar('Health screening passed! You can proceed with appointment.', { variant: 'success' });
+    } else {
+      enqueueSnackbar('Health screening shows some concerns. Please consult with medical staff.', { variant: 'warning' });
+    }
+  };
+
   return (
     <Paper sx={{ p: 2, mb: 3 }}>
       <Typography variant="h6" gutterBottom>Schedule Appointment</Typography>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={handleHealthScreening}
+          startIcon={<AIIcon />}
+        >
+          AI Health Screening
+        </Button>
+      </Box>
       <form onSubmit={handleSubmit}>
         <TextField label="Date" name="date" type="datetime-local" value={form.date} onChange={handleChange} fullWidth margin="normal" required InputLabelProps={{ shrink: true }} />
         <TextField label="Reason" name="reason" value={form.reason} onChange={handleChange} fullWidth margin="normal" />
@@ -711,6 +748,14 @@ function AppointmentForm({ onAppointmentCreated }) {
           {loading ? <CircularProgress size={20} /> : 'Schedule'}
         </Button>
       </form>
+
+      {/* AI Health Screening Bot */}
+      <HealthScreeningBot
+        open={healthScreeningOpen}
+        onClose={() => setHealthScreeningOpen(false)}
+        onComplete={handleScreeningComplete}
+        donorData={user}
+      />
     </Paper>
   );
 }
@@ -768,6 +813,26 @@ function BloodRequestForm({ onRequestCreated, user }) {
 
 function UserRequests({ user }) {
   const { data: requests, loading, error } = useFetch(() => api.get('/requests/my').then(res => res.data), []);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const enqueueSnackbar = useSnackbar();
+  const [refresh, setRefresh] = useState(0);
+
+  const handleCancel = async (id) => {
+    if (!window.confirm('Are you sure you want to cancel this request?')) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await api.put(`/requests/${id}`, { status: 'cancelled' });
+      enqueueSnackbar('Request cancelled!', { variant: 'success' });
+      setRefresh(r => r + 1);
+    } catch (err) {
+      setActionError('Failed to cancel request');
+      enqueueSnackbar('Failed to cancel request', { variant: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   if (loading) return <CircularProgress sx={{ mb: 2 }} />;
   if (error) return <Alert severity="error" sx={{ mb: 2 }}>{error.message || error.toString()}</Alert>;
@@ -780,6 +845,7 @@ function UserRequests({ user }) {
       <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
         My Blood Requests
       </Typography>
+      {actionError && <Alert severity="error" sx={{ mb: 2 }}>{actionError}</Alert>}
       <TableContainer>
         <Table>
           <TableHead>
@@ -788,6 +854,7 @@ function UserRequests({ user }) {
               <TableCell sx={{ fontWeight: 600 }}>Blood Group</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Quantity</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -797,6 +864,19 @@ function UserRequests({ user }) {
                 <TableCell>{req.bloodGroupNeeded}</TableCell>
                 <TableCell>{req.quantity}</TableCell>
                 <TableCell>{req.status}</TableCell>
+                <TableCell>
+                  {req.status !== 'cancelled' && (
+                    <Button
+                      size="small"
+                      color="warning"
+                      onClick={() => handleCancel(req._id)}
+                      disabled={actionLoading}
+                      sx={{ minWidth: 'auto', px: 1 }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -812,21 +892,55 @@ function FeedbackForm() {
   const enqueueSnackbar = useSnackbar();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [sentiment, setSentiment] = useState(null);
+  const [badWordError, setBadWordError] = useState('');
+
+  // Simple bad words list (can be expanded)
+  const badWords = [
+    'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'damn', 'crap', 'dick', 'piss', 'cunt', 'fag', 'slut', 'whore', 'nigger', 'retard', 'idiot', 'moron', 'stupid', 'hate', 'kill', 'die', 'suck', 'screwed', 'bollocks', 'bugger', 'arse', 'twat', 'wanker', 'prick', 'cock', 'pussy', 'fucking', 'motherfucker', 'bullshit', 'douche', 'douchebag', 'jackass', 'jerk', 'loser', 'scum', 'trash', 'racist', 'sexist', 'terrorist', 'bomb', 'shoot', 'rape', 'molest', 'abuse', 'threat', 'suicide', 'murder', 'violence', 'kill yourself', 'go to hell', 'die in a fire', 'die', 'kys'
+  ];
+
+  // Check for bad words
+  const containsBadWords = (text) => {
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    return badWords.some(word => lower.includes(word));
+  };
 
   const handleChange = e => {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
+
+    // Analyze sentiment when message changes
+    if (name === 'message') {
+      if (containsBadWords(value)) {
+        setBadWordError('Your feedback contains inappropriate language. Please remove bad words.');
+      } else {
+        setBadWordError('');
+      }
+      if (value) {
+        const sentimentResult = analyzeFeedbackSentiment(value);
+        setSentiment(sentimentResult);
+      } else {
+        setSentiment(null);
+      }
+    }
   };
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    if (containsBadWords(form.message)) {
+      setBadWordError('Your feedback contains inappropriate language. Please remove bad words.');
+      return;
+    }
     try {
       await submitFeedbackApi(form);
       setSuccess('Feedback submitted!');
       enqueueSnackbar('Feedback submitted!', { variant: 'success' });
       setForm({ message: '', rating: '' });
+      setSentiment(null);
     } catch (err) {
       setError('Failed to submit feedback');
       enqueueSnackbar('Failed to submit feedback', { variant: 'error' });
@@ -847,7 +961,18 @@ function FeedbackForm() {
           required
           multiline
           minRows={2}
+          error={!!badWordError}
+          helperText={badWordError}
         />
+        {sentiment && !badWordError && (
+          <Box sx={{ mt: 1, mb: 1 }}>
+            <Chip
+              label={`Sentiment: ${sentiment.sentiment} (Score: ${sentiment.score})`}
+              color={sentiment.sentiment === 'POSITIVE' ? 'success' : sentiment.sentiment === 'NEGATIVE' ? 'error' : 'default'}
+              size="small"
+            />
+          </Box>
+        )}
         <TextField
           label="Rating (1-5)"
           name="rating"
@@ -861,7 +986,7 @@ function FeedbackForm() {
         />
         {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mt: 1 }}>{success}</Alert>}
-        <Button type="submit" variant="contained" color="primary" sx={{ mt: 2 }} disabled={loading}>
+        <Button type="submit" variant="contained" color="primary" sx={{ mt: 2 }} disabled={loading || !!badWordError}>
           {loading ? <CircularProgress size={20} /> : 'Submit Feedback'}
         </Button>
       </form>
@@ -1415,7 +1540,9 @@ export default function DashboardPage() {
     if (isAdmin) {
       setStatsLoading(true);
       api.get('/analytics/stats')
-        .then(res => setStats(res.data))
+        .then(res => {
+          setStats(res.data);
+        })
         .catch(err => setStatsError(err.response?.data?.message || 'Failed to load stats'))
         .finally(() => setStatsLoading(false));
     }

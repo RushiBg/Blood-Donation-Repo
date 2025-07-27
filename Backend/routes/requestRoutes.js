@@ -15,10 +15,16 @@ router.get("/fulfilled/today", protect, async (req, res) => {
   const Request = require("../models/Request");
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
   try {
     const requests = await Request.find({
       status: "fulfilled",
-      updatedAt: { $gte: today }
+      $or: [
+        { updatedAt: { $gte: today, $lt: tomorrow } },
+        { createdAt: { $gte: today, $lt: tomorrow } }
+      ]
     }).populate("fulfilledBy");
     res.json(requests);
   } catch (err) {

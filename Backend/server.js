@@ -1,49 +1,52 @@
+const dotenv = require('dotenv');
+dotenv.config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const securityFilter = require('./middleware/securityFilter');
-const rateLimiter = require('./middleware/rateLimiter');
-const errorLogger = require('./middleware/errorLogger');
-const upload = require('./middleware/uploadMiddleware');
 const helmet = require("helmet");
 const compression = require("compression");
 
-// Load env vars
-dotenv.config();
+const securityFilter = require('./middleware/securityFilter');
+const { generalLimiter, authLimiter, dashboardLimiter } = require('./middleware/rateLimiter');
+const errorLogger = require('./middleware/errorLogger');
+const upload = require('./middleware/uploadMiddleware');
 
 const app = express();
 
-// CORS: Allow frontend dev server
+// Core middlewares
+app.use(helmet());
+app.use(compression());
+
 app.use(cors({
   origin: 'http://localhost:5173',
   credentials: true
 }));
-
 app.use(express.json());
 app.use(securityFilter);
-app.use(rateLimiter);
-app.use(errorLogger);
+app.use(generalLimiter);
 
-// File upload route (for import)
+// Import/Export routes
 app.post('/api/data/import/donors', upload.single('file'), require('./controllers/importExportController').importDonors);
 app.get('/api/data/export/donors', require('./controllers/importExportController').exportDonors);
 
-// Routes
-app.use('/api/users', require('./routes/userRoutes'));
-app.use('/api/admin', require('./routes/adminRoutes'));
+// API routes
+app.use('/api/users', authLimiter, require('./routes/userRoutes'));
+app.use('/api/admin', authLimiter, require('./routes/adminRoutes'));
+app.use('/api/verify', authLimiter, require('./routes/verifyRoutes'));
+app.use('/api/analytics', dashboardLimiter, require('./routes/analyticsRoutes'));
+app.use('/api/reminder', require('./routes/reminderRoutes'));
 app.use('/api/donors', require('./routes/donorRoutes'));
 app.use('/api/appointments', require('./routes/appointmentRoutes'));
 app.use('/api/requests', require('./routes/requestRoutes'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
 app.use('/api/feedback', require('./routes/feedbackRoutes'));
-app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/profile', require('./routes/profileRoutes'));
 app.use('/api/email', require('./routes/emailRoutes'));
-app.use('/api/verify', require('./routes/verifyRoutes'));
 
-// Error handler
+// Final error handler
 app.use((err, req, res, next) => {
+  console.error("Internal error:", err);
   res.status(500).json({ message: 'Server error', error: err.message });
 });
 
@@ -53,6 +56,8 @@ mongoose.connect(process.env.MONGO_URI, {
   useUnifiedTopology: true
 }).then(() => {
   console.log("MongoDB connected");
-  app.listen(3000, () => console.log("Server running on port 3000"));
-}).catch(err => console.error(err));
-app.use(errorLogger); 
+  app.listen(3000, () => console.log("Server running on http://localhost:3000"));
+}).catch(err => console.error("MongoDB Error:", err));
+
+// Error logging (once)
+app.use(errorLogger);

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Box, Button, TextField, Typography, Paper, Alert, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Button, TextField, Typography, Alert, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Avatar, Card, CardContent, Divider } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useSnackbar } from 'notistack';
 import { useTheme } from '@mui/material';
+import { Bloodtype, Lock, Email, Visibility, VisibilityOff } from '@mui/icons-material';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [code, setCode] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
@@ -39,21 +41,25 @@ export default function LoginPage() {
         try {
           // Try user login
           const res = await api.post('/users/login', { email, password });
-          login(res.data.token, { email, role: 'user' });
+          login(res.data.token, res.data.user);
           enqueueSnackbar('User login successful!', { variant: 'success' });
           navigate('/dashboard');
         } catch (userErr) {
           const userMsg = userErr.response?.data?.message || 'Login failed';
           setError(userMsg);
           enqueueSnackbar(userMsg, { variant: 'error' });
-          if (userErr.response?.status === 403 && userMsg.toLowerCase().includes('not verified')) {
+          
+          // Check if user needs verification
+          if (userErr.response?.data?.needsVerification) {
             setShowVerify(true);
           }
         }
       } else {
         setError(msg);
         enqueueSnackbar(msg, { variant: 'error' });
-        if (err.response?.status === 403 && msg.toLowerCase().includes('not verified')) {
+        
+        // Check if user needs verification
+        if (err.response?.data?.needsVerification) {
           setShowVerify(true);
         }
       }
@@ -68,9 +74,10 @@ export default function LoginPage() {
     try {
       await api.post('/verify/send', { email });
       setSent(true);
-      enqueueSnackbar('Verification code sent!', { variant: 'success' });
-    } catch {
-      enqueueSnackbar('Failed to send code', { variant: 'error' });
+      enqueueSnackbar('Verification code sent! Check your email (and spam folder).', { variant: 'success' });
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to send code';
+      enqueueSnackbar(msg, { variant: 'error' });
     } finally {
       setVerifyLoading(false);
     }
@@ -84,8 +91,9 @@ export default function LoginPage() {
       setShowVerify(false);
       setSent(false);
       setCode('');
-    } catch {
-      enqueueSnackbar('Verification failed', { variant: 'error' });
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Verification failed';
+      enqueueSnackbar(msg, { variant: 'error' });
     } finally {
       setVerifying(false);
     }
@@ -99,83 +107,196 @@ export default function LoginPage() {
       justifyContent="center"
       sx={{
         background: isDark
-          ? 'linear-gradient(120deg, #232323 0%, #181818 100%)'
-          : 'linear-gradient(120deg, #f8fafc 0%, #f1f5f9 100%)',
+          ? 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)'
+          : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        p: 2,
       }}
     >
-      <Paper sx={{ p: 5, minWidth: { xs: 320, sm: 400 }, maxWidth: 420, width: '100%', boxShadow: 6, borderRadius: 5, bgcolor: isDark ? '#232323' : '#fff', color: isDark ? '#fff' : 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <Typography variant="h4" gutterBottom sx={{ color: isDark ? '#fff' : 'text.primary', fontWeight: 700, textAlign: 'center', mb: 3, letterSpacing: 1 }}>
-          Login
-        </Typography>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
-          <TextField
-            label="Email"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            fullWidth
-            margin="normal"
-            required
-            autoComplete="username"
-            InputLabelProps={{ style: { color: isDark ? '#fff' : undefined } }}
-            sx={{ input: { color: isDark ? '#fff' : undefined } }}
-          />
-          <TextField
-            label="Password"
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            fullWidth
-            margin="normal"
-            required
-            autoComplete="current-password"
-            InputLabelProps={{ style: { color: isDark ? '#fff' : undefined } }}
-            sx={{ input: { color: isDark ? '#fff' : undefined } }}
-          />
-          <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 3, py: 1.3, fontWeight: 700, fontSize: '1.1rem', borderRadius: 2, letterSpacing: 1 }} disabled={loading}>
-            {loading ? <CircularProgress size={24} color="inherit" /> : 'LOGIN'}
-          </Button>
-        </form>
-        <Button
-          variant="text"
-          color="primary"
-          fullWidth
-          sx={{ mt: 2, fontWeight: 600, fontSize: '1rem', borderRadius: 2, letterSpacing: 1 }}
-          onClick={() => navigate('/register')}
-        >
-          Don't have an account? Register
-        </Button>
-      </Paper>
+      <Card
+        elevation={0}
+        sx={{
+          width: { xs: '100%', sm: 450 },
+          maxWidth: 500,
+          borderRadius: 4,
+          background: isDark 
+            ? 'linear-gradient(135deg, #1a1a1a 0%, #2c3e50 100%)' 
+            : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          border: `1px solid ${isDark ? '#34495e' : '#e2e8f0'}`,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.1)',
+          overflow: 'hidden',
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            background: 'linear-gradient(90deg, #e74c3c, #3498db, #27ae60, #f39c12)',
+          },
+        }}
+      >
+        <CardContent sx={{ p: 4 }}>
+          {/* Header */}
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Avatar
+              sx={{
+                width: 80,
+                height: 80,
+                background: 'linear-gradient(45deg, #e74c3c, #c0392b)',
+                boxShadow: '0 8px 32px rgba(231, 76, 60, 0.3)',
+                mx: 'auto',
+                mb: 2,
+              }}
+            >
+              <Bloodtype sx={{ fontSize: 40, color: '#fff' }} />
+            </Avatar>
+            <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, color: isDark ? '#fff' : 'text.primary' }}>
+              Welcome Back
+            </Typography>
+            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+              Sign in to your account
+            </Typography>
+          </Box>
+
+          {/* Login Form */}
+          <Box component="form" onSubmit={handleSubmit} sx={{ mb: 3 }}>
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              sx={{ mb: 3 }}
+              InputProps={{
+                startAdornment: <Email sx={{ mr: 1, color: 'text.secondary' }} />,
+              }}
+            />
+            <TextField
+              fullWidth
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              sx={{ mb: 3 }}
+              InputProps={{
+                startAdornment: <Lock sx={{ mr: 1, color: 'text.secondary' }} />,
+                endAdornment: (
+                  <Button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    sx={{ minWidth: 'auto', p: 1 }}
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </Button>
+                ),
+              }}
+            />
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              disabled={loading}
+              sx={{
+                py: 1.5,
+                fontWeight: 700,
+                fontSize: '1.1rem',
+                background: 'linear-gradient(45deg, #e74c3c, #c0392b)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #c0392b, #a93226)',
+                  transform: 'translateY(-1px)',
+                },
+              }}
+            >
+              {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+            </Button>
+          </Box>
+
+          <Divider sx={{ my: 3 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Don't have an account?
+            </Typography>
+          </Divider>
+
+          <Box sx={{ textAlign: 'center' }}>
+            <Button
+              component={Link}
+              to="/register"
+              variant="outlined"
+              fullWidth
+              sx={{
+                py: 1.5,
+                fontWeight: 600,
+                borderColor: isDark ? '#34495e' : '#cbd5e1',
+                color: isDark ? '#fff' : 'text.primary',
+                '&:hover': {
+                  borderColor: '#e74c3c',
+                  backgroundColor: 'rgba(231, 76, 60, 0.05)',
+                },
+              }}
+            >
+              Create Account
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+
       {/* Verification Dialog */}
-      <Dialog open={showVerify} onClose={() => setShowVerify(false)}>
-        <DialogTitle sx={{ color: isDark ? '#fff' : 'text.primary', bgcolor: isDark ? '#232323' : '#fff' }}>Account Verification Required</DialogTitle>
+      <Dialog open={showVerify} onClose={() => setShowVerify(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, color: isDark ? '#fff' : 'text.primary', bgcolor: isDark ? '#232323' : '#fff' }}>
+          Verify Your Account
+        </DialogTitle>
         <DialogContent sx={{ bgcolor: isDark ? '#232323' : '#fff', color: isDark ? '#fff' : 'inherit' }}>
           <Typography sx={{ mb: 2, color: isDark ? '#fff' : 'text.primary' }}>
-            Your account is not verified. Please verify your account to log in.
+            Your account needs to be verified. A verification code will be sent to <strong>{email}</strong>.
           </Typography>
-          <Button variant="outlined" onClick={sendCode} disabled={verifyLoading} sx={{ mb: 2, color: isDark ? '#fff' : undefined, borderColor: isDark ? '#fff' : undefined }}>
-            {verifyLoading ? <CircularProgress size={20} /> : 'Send Verification Code'}
-          </Button>
-          {sent && (
-            <Box display="flex" alignItems="center" gap={2}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <strong>Email Setup:</strong> If you don't receive emails, check the server console or set up email credentials in the Backend/.env file.
+          </Alert>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <strong>Check Spam:</strong> Verification emails might go to your spam folder. Please check there as well.
+          </Alert>
+          {!sent ? (
+            <Button
+              variant="contained"
+              onClick={sendCode}
+              disabled={verifyLoading}
+              fullWidth
+              sx={{ mt: 2 }}
+            >
+              {verifyLoading ? <CircularProgress size={20} /> : 'Send Verification Code'}
+            </Button>
+          ) : (
+            <Box display="flex" flexDirection="column" gap={2}>
+              <Alert severity="success" sx={{ mb: 1 }}>
+                Verification code sent! Check your email and spam folder.
+              </Alert>
               <TextField
-                label="Enter Code"
+                fullWidth
+                label="Verification Code"
                 value={code}
-                onChange={e => setCode(e.target.value)}
-                size="small"
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Enter 6-digit code"
                 InputLabelProps={{ style: { color: isDark ? '#fff' : undefined } }}
                 sx={{ input: { color: isDark ? '#fff' : undefined } }}
               />
-              <Button variant="contained" onClick={confirmCode} disabled={verifying || !code}>
-                {verifying ? <CircularProgress size={20} /> : 'Verify'}
+              <Button
+                variant="contained"
+                onClick={confirmCode}
+                disabled={verifying || !code || code.length !== 6}
+                fullWidth
+              >
+                {verifying ? <CircularProgress size={20} /> : 'Verify Account'}
               </Button>
             </Box>
           )}
         </DialogContent>
         <DialogActions sx={{ bgcolor: isDark ? '#232323' : '#fff' }}>
           <Button onClick={() => setShowVerify(false)} sx={{ color: isDark ? '#fff' : undefined }}>
-            Close
+            Cancel
           </Button>
         </DialogActions>
       </Dialog>

@@ -59,7 +59,7 @@ const updateRequestStatus = async (req, res) => {
     }
     const request = await Request.findByIdAndUpdate(
       req.params.id,
-      update,
+      { ...update, updatedAt: new Date() },
       { new: true }
     );
     // Update donor's lastDonationDate and donations count if fulfilled
