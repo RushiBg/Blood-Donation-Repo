@@ -3,6 +3,7 @@ const AuditLog = require("../models/AuditLog");
 const Donor = require("../models/Donor");
 const Appointment = require("../models/Appointment");
 const User = require("../models/User");
+const sendEmail = require("../utils/email");
 
 const logAction = async (admin, action, targetModel, targetId) => {
   await AuditLog.create({
@@ -53,15 +54,92 @@ const updateRequestStatus = async (req, res) => {
     if (!allowedStatuses.includes(req.body.status)) {
       return res.status(400).json({ message: "Invalid status value" });
     }
+    
+    // Get the request before updating to check previous status
+    const previousRequest = await Request.findById(req.params.id);
+    if (!previousRequest) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+    
     const update = { status: req.body.status };
     if (req.body.status === "fulfilled" && req.body.fulfilledBy) {
       update.fulfilledBy = req.body.fulfilledBy;
     }
+    
     const request = await Request.findByIdAndUpdate(
       req.params.id,
       { ...update, updatedAt: new Date() },
       { new: true }
     );
+    
+    // Send email notification to requester if status has changed
+    if (request && request.requesterEmail && previousRequest.status !== req.body.status) {
+      const statusMessages = {
+        pending: "Your blood request is now pending review.",
+        fulfilled: "Great news! Your blood request has been fulfilled.",
+        cancelled: "Your blood request has been cancelled."
+      };
+      
+      const statusSubjects = {
+        pending: "Blood Request Status Update",
+        fulfilled: "Blood Request Fulfilled",
+        cancelled: "Blood Request Cancelled"
+      };
+      
+      // Find requester name if available
+      let requesterName = request.requesterName || 'Requester';
+      try {
+        const user = await User.findOne({ email: request.requesterEmail });
+        if (user && user.name) {
+          requesterName = user.name;
+        }
+      } catch (err) {
+        // Continue with default name if error occurs
+      }
+      
+      // Send status update email with more detailed information
+      const bloodGroup = request.bloodGroupNeeded || 'requested blood';
+      const quantity = request.quantity ? `${request.quantity} units` : 'requested quantity';
+      
+      let statusMessage;
+      if (request.status === 'fulfilled') {
+        statusMessage = `
+          <div style="background-color: #e8f5e8; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="font-weight: bold; color: #27ae60;">Great news! Your blood request has been fulfilled.</p>
+          </div>
+          <p>Your request for <strong>${quantity}</strong> of <strong>${bloodGroup}</strong> blood type has been successfully fulfilled.</p>
+          <p>Thank you for using our Blood Donation System. Your request has been processed on ${new Date().toLocaleDateString()}.</p>
+          <p>If you have any questions or need further assistance, please contact our support team.</p>
+        `;
+      } else if (request.status === 'cancelled') {
+        statusMessage = `
+          <div style="background-color: #fde8e8; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="font-weight: bold; color: #e53e3e;">Your blood request has been cancelled.</p>
+          </div>
+          <p>Your request for <strong>${quantity}</strong> of <strong>${bloodGroup}</strong> blood type has been cancelled.</p>
+          <p>If this was not expected or if you need to create a new request, please log in to your account.</p>
+          <p>If you have any questions or need further assistance, please contact our support team.</p>
+        `;
+      } else {
+        statusMessage = `
+          <div style="background-color: #e6f7ff; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p style="font-weight: bold; color: #0066cc;">Your blood request status has been updated to: ${request.status}</p>
+          </div>
+          <p>Your request for <strong>${quantity}</strong> of <strong>${bloodGroup}</strong> blood type is currently being processed.</p>
+          <p>We will notify you of any further updates regarding your request.</p>
+          <p>If you have any questions or need further assistance, please contact our support team.</p>
+        `;
+      }
+      
+      const statusSubject = statusSubjects[request.status] || "Blood Request Status Update";
+      
+      await sendEmail(
+        request.requesterEmail,
+        statusSubject,
+        statusMessage,
+        requesterName
+      );
+    }
     // Update donor's lastDonationDate and donations count if fulfilled
     if (req.body.status === "fulfilled" && req.body.fulfilledBy) {
       try {
@@ -136,4 +214,4 @@ const deleteRequest = async (req, res) => {
   }
 };
 
-module.exports = { createRequest, getRequests, updateRequestStatus, deleteRequest, getMyRequests }; 
+module.exports = { createRequest, getRequests, updateRequestStatus, deleteRequest, getMyRequests };

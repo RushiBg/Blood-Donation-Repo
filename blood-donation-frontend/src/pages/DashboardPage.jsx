@@ -270,7 +270,7 @@ function DonorTable({ refresh }) {
     { field: 'bloodGroup', headerName: 'Blood Group', width: 120 },
     { field: 'address', headerName: 'Address', width: 180 },
     { field: 'donations', headerName: 'Donations', width: 110, type: 'number' },
-    // { field: 'lastDonationDate', headerName: 'Last Donation', width: 160, valueGetter: (params) => params?.row?.lastDonationDate ? new Date(params.row.lastDonationDate).toLocaleDateString() : '' },
+
     {
       field: 'donationsThisYear',
       headerName: 'Donations (This Year)',

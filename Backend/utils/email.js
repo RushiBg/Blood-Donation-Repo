@@ -9,26 +9,38 @@ const createTransporter = () => {
   });
 };
 
-async function sendEmail(email, subject, code, recipientName = 'User') {
+async function sendEmail(email, subject, message, recipientName = 'User') {
   try {
     // Check if credentials are set
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log(`[EMAIL DEMO] To: ${email} | Subject: ${subject} | Code: ${code}`);
+      console.log(`[EMAIL DEMO] To: ${email} | Subject: ${subject} | Message: ${message}`);
       console.log('⚠️  Email not sent: EMAIL_USER and EMAIL_PASS environment variables not configured');
       return true;
     }
 
     const transporter = createTransporter();
-
-    const message = `
-      <p>Hello ${recipientName},</p>
-      <p>Your verification code is:</p>
-      <div style="font-size: 28px; font-weight: bold; color: #ffffff; background-color: #e74c3c; display: inline-block; padding: 10px 20px; border-radius: 8px; margin: 15px 0;">
-        ${code}
-      </div>
-      <p>This code will expire in 5 minutes.</p>
-      <p>If you didn't request this code, please ignore this email.</p>
-    `;
+    
+    // Check if the message is a verification code (numeric) or a regular message
+    let messageContent;
+    if (/^\d+$/.test(message)) {
+      // It's a verification code
+      messageContent = `
+        <p>Hello ${recipientName},</p>
+        <p>Your verification code is:</p>
+        <div style="font-size: 28px; font-weight: bold; color: #ffffff; background-color: #e74c3c; display: inline-block; padding: 10px 20px; border-radius: 8px; margin: 15px 0;">
+          ${message}
+        </div>
+        <p>This code will expire in 5 minutes.</p>
+        <p>If you didn't request this code, please ignore this email.</p>
+      `;
+    } else {
+      // It's a regular message
+      messageContent = `
+        <p>Hello ${recipientName},</p>
+        <p>${message}</p>
+        <p>Thank you for using our Blood Donation System.</p>
+      `;
+    }
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -40,7 +52,7 @@ async function sendEmail(email, subject, code, recipientName = 'User') {
             <h2 style="color: #e74c3c; text-align: center; margin-bottom: 30px;">Blood Donation System</h2>
             <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; border-left: 4px solid #27ae60;">
               <h3 style="color: #27ae60; margin-top: 0;">${subject}</h3>
-              <div style="color: #2c3e50; line-height: 1.6; margin-bottom: 20px;">${message}</div>
+              <div style="color: #2c3e50; line-height: 1.6; margin-bottom: 20px;">${messageContent}</div>
             </div>
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ecf0f1;">
               <p style="color: #7f8c8d; font-size: 14px;">
@@ -59,7 +71,7 @@ async function sendEmail(email, subject, code, recipientName = 'User') {
 
   } catch (error) {
     console.error('❌ Email sending failed:', error);
-    console.log(`[EMAIL DEMO] To: ${email} | Subject: ${subject} | Code: ${code}`);
+    console.log(`[EMAIL DEMO] To: ${email} | Subject: ${subject} | Message: ${message}`);
     return false;
   }
 }
