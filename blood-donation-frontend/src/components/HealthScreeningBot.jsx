@@ -544,7 +544,7 @@ const HealthScreeningBot = ({ open, onClose, onComplete, donorData }) => {
             placeholder="Type your answer..."
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={(e) => e.key === 'Enter' && handleKeyPress(e)}
             disabled={loading || currentQuestion >= screeningQuestions.length}
             size="small"
           />
