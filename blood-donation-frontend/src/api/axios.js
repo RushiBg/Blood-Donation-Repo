@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://blood-donation-backend-ke7d.onrender.com/api',
   timeout: 10000, // 10 second timeout
 });
 
