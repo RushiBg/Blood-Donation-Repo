@@ -2,6 +2,8 @@
 
 A full-stack web application for managing blood donations, donor appointments, requests, analytics, and payments. Built with React (frontend) and Node.js/Express/MongoDB (backend).
 
+_Deployed on [Render](https://render.com/) for both frontend and backend._
+
 ---
 
 ## Features
@@ -79,6 +81,12 @@ npm run dev
 ```
 
 The frontend will run on [http://localhost:5173](http://localhost:5173) by default.
+
+---
+
+## Deployment
+
+The entire site (both frontend and backend) is deployed on [Render](https://blood-donation-frontend-0lc5.onrender.com). You can set up continuous deployment by connecting your GitHub repository to Render and configuring both frontend and backend web services according to your project structure.
 
 ---
 
