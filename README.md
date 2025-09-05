@@ -47,7 +47,7 @@ Blood Donation/
 ### 1. Clone the Repository
 ```sh
 git clone https://github.com/RushiBg/Blood-Donation-Repo.git
-cd Blood\ Donation
+cd Blood-Donation-Repo
 ```
 
 ### 2. Backend Setup
@@ -107,14 +107,5 @@ The entire site (both frontend and backend) is deployed on [Render](https://bloo
 - `GET /api/analytics/stats` — Admin analytics
 - `POST /api/payment/create-checkout-session` — Create Stripe Checkout session
 - `POST /api/payment/webhook` — Stripe webhook
-
----
-
-## Contribution
-1. Fork the repo
-2. Create your feature branch (`git checkout -b feature/YourFeature`)
-3. Commit your changes (`git commit -am 'Add new feature'`)
-4. Push to the branch (`git push origin feature/YourFeature`)
-5. Open a Pull Request
 
 ---
